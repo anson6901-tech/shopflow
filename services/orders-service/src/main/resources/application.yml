@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: orders-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Where to reach the Catalog service (its Kubernetes service name).
+catalog:
+  url: ${CATALOG_URL}
+
+# The SQS queue this service publishes order events to.
+order-events:
+  queue-name: ${ORDER_EVENTS_QUEUE_NAME}
+
+# AWS region for the SQS client.
+spring.cloud.aws:
+  region:
+    static: ${AWS_REGION}
+  sqs:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

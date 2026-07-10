@@ -1,0 +1,22 @@
+# Tells Prometheus (from the kube-prometheus-stack) to scrape the Spring Boot
+# services at /actuator/prometheus. Requires the Prometheus Operator CRDs,
+# which the monitoring stack installs (see platform/monitoring/SETUP.md).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: shopflow-services
+  labels:
+    release: kube-prometheus-stack   # so the stack's Prometheus picks it up
+    {{- include "shopflow.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames: ["default"]
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["catalog-service", "orders-service", "notifications-service"]
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s

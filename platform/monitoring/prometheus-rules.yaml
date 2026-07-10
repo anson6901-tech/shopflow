@@ -1,0 +1,33 @@
+# Alerts: fire when a service is down or erroring. Loaded by the Prometheus
+# Operator from the kube-prometheus-stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: shopflow-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: shopflow
+      rules:
+        - alert: ServiceDown
+          expr: up{job=~"catalog-service|orders-service|notifications-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "A ShopFlow service is down"
+            description: "{{ $labels.job }} has been unreachable for 2 minutes."
+
+        - alert: HighHttpErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (job)
+            /
+            sum(rate(http_server_requests_seconds_count[5m])) by (job)
+            > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx error rate"
+            description: "{{ $labels.job }} is returning over 5% server errors."

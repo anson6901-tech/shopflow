@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications-service
+  labels:
+    app: notifications-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications-service
+  template:
+    metadata:
+      labels:
+        app: notifications-service
+    spec:
+      containers:
+        - name: notifications-service
+          image: 010296565014.dkr.ecr.us-east-1.amazonaws.com/shopflow-notifications:1.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ORDER_EVENTS_QUEUE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: shopflow-config
+                  key: ORDER_EVENTS_QUEUE_NAME
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: shopflow-config
+                  key: AWS_REGION
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15

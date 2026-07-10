@@ -1,0 +1,23 @@
+{{- range $name, $cfg := dict "catalog-service" (dict "min" 2 "max" 5) "orders-service" (dict "min" 2 "max" 5) "notifications-service" (dict "min" 1 "max" 3) "storefront" (dict "min" 2 "max" 4) }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "shopflow.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $cfg.min }}
+  maxReplicas: {{ $cfg.max }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+{{- end }}

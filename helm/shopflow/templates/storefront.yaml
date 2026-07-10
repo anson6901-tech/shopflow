@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storefront
+  labels:
+    app: storefront
+    {{- include "shopflow.labels" . | nindent 4 }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: storefront
+  template:
+    metadata:
+      labels:
+        app: storefront
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101   # the nginx unprivileged user
+      containers:
+        - name: storefront
+          image: {{ include "shopflow.image" (dict "registry" .Values.image.registry "repo" "shopflow-storefront" "tag" .Values.image.tag) }}
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storefront
+  labels: { app: storefront }
+spec:
+  selector: { app: storefront }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }

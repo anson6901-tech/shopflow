@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+  labels:
+    app: orders-service
+    {{- include "shopflow.labels" . | nindent 4 }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: orders-service
+          image: {{ include "shopflow.image" (dict "registry" .Values.image.registry "repo" "shopflow-orders" "tag" .Values.image.tag) }}
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SPRING_DATASOURCE_URL
+              valueFrom: { configMapKeyRef: { name: shopflow-config, key: SPRING_DATASOURCE_URL } }
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ .Values.dbSecretName }}, key: username } }
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.dbSecretName }}, key: password } }
+            - name: CATALOG_URL
+              value: "http://catalog-service:8080"
+            - name: ORDER_EVENTS_QUEUE_NAME
+              valueFrom: { configMapKeyRef: { name: shopflow-config, key: ORDER_EVENTS_QUEUE_NAME } }
+            - name: AWS_REGION
+              valueFrom: { configMapKeyRef: { name: shopflow-config, key: AWS_REGION } }
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-service
+  labels: { app: orders-service }
+spec:
+  selector: { app: orders-service }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

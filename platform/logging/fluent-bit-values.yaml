@@ -1,0 +1,19 @@
+# Helm values for aws-for-fluent-bit. Ships all container logs to a
+# CloudWatch log group so you can search them in one place.
+cloudWatchLogs:
+  enabled: true
+  region: us-east-1
+  logGroupName: /shopflow/containers
+  autoCreateGroup: true
+  logRetentionDays: 7
+
+# Use the default tail input for container logs.
+input:
+  enabled: true
+
+firehose:
+  enabled: false
+kinesis:
+  enabled: false
+elasticsearch:
+  enabled: false

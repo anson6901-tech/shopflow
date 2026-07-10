@@ -1,0 +1,11 @@
+# Non-secret configuration shared by the services.
+# Replace shopflow-db.c0p8s0e6qwxd.us-east-1.rds.amazonaws.com with the host from `terraform output rds_endpoint`
+# (use only the host part, before the ":5432").
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopflow-config
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://shopflow-db.c0p8s0e6qwxd.us-east-1.rds.amazonaws.com:5432/shopflow"
+  ORDER_EVENTS_QUEUE_NAME: "shopflow-order-events"
+  AWS_REGION: "us-east-1"

@@ -1,0 +1,115 @@
+// Phase 2 delivery pipeline, one per service. It reuses the gated pipeline
+// from Project 5 and adds: publish the jar to Nexus (the artifact store), and
+// deploy with Helm instead of by hand.
+//
+// Create one Jenkins job per service and set SERVICE to catalog, orders, or
+// notifications. The storefront has its own simpler build (npm + docker).
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'SERVICE', choices: ['catalog', 'orders', 'notifications'], description: 'Which service to build')
+    }
+
+    environment {
+        AWS_REGION   = 'us-east-1'
+        ECR_ACCOUNT  = '123456789012'
+        EKS_CLUSTER  = 'shopflow'
+        NEXUS_URL    = 'http://nexus:8081/repository/maven-releases/'
+
+        SERVICE_DIR  = "services/${params.SERVICE}-service"
+        IMAGE_REPO   = "shopflow-${params.SERVICE}"
+        IMAGE_TAG    = "${BUILD_NUMBER}"
+        ECR_REGISTRY = "${ECR_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE        = "${ECR_REGISTRY}/${IMAGE_REPO}"
+
+        SONAR_HOST   = 'http://sonarqube:9000'
+        AWS_CREDS    = credentials('aws-ecr')
+        SONAR_TOKEN  = credentials('sonar-token')
+        NEXUS_CREDS  = credentials('nexus')
+    }
+
+    stages {
+        stage('Checkout') { steps { checkout scm } }
+
+        stage('Build') { steps { dir("${SERVICE_DIR}") { sh 'mvn -B -ntp clean compile' } } }
+
+        stage('Test + Coverage') {
+            steps { dir("${SERVICE_DIR}") { sh 'mvn -B -ntp test' } }
+            post { always { junit "${SERVICE_DIR}/target/surefire-reports/*.xml" } }
+        }
+
+        stage('Code Analysis (SonarQube)') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh '''
+                        mvn -B -ntp sonar:sonar \
+                          -Dsonar.host.url=${SONAR_HOST} \
+                          -Dsonar.token=${SONAR_TOKEN} \
+                          -Dsonar.projectKey=shopflow-${SERVICE} \
+                          -Dsonar.qualitygate.wait=true
+                    '''
+                }
+            }
+        }
+
+        stage('Dependency Scan (Trivy)') {
+            steps { sh "trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress ${SERVICE_DIR}" }
+        }
+
+        stage('Package') { steps { dir("${SERVICE_DIR}") { sh 'mvn -B -ntp package -DskipTests' } } }
+
+        stage('Publish artifact to Nexus') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh '''
+                        mvn -B -ntp deploy:deploy-file \
+                          -Durl=${NEXUS_URL} \
+                          -DrepositoryId=nexus \
+                          -Dfile=target/app.jar \
+                          -DgroupId=com.shopflow -DartifactId=${SERVICE}-service -Dversion=1.0.${BUILD_NUMBER} -Dpackaging=jar \
+                          -Dusername=${NEXUS_CREDS_USR} -Dpassword=${NEXUS_CREDS_PSW}
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Build') { steps { dir("${SERVICE_DIR}") { sh 'docker build -t ${IMAGE}:${IMAGE_TAG} -t ${IMAGE}:latest .' } } }
+
+        stage('Image Scan (Trivy)') {
+            steps { sh 'trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress ${IMAGE}:${IMAGE_TAG}' }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                sh '''
+                    export AWS_ACCESS_KEY_ID=$AWS_CREDS_USR
+                    export AWS_SECRET_ACCESS_KEY=$AWS_CREDS_PSW
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    docker push ${IMAGE}:${IMAGE_TAG}
+                    docker push ${IMAGE}:latest
+                '''
+            }
+        }
+
+        stage('Deploy with Helm') {
+            steps {
+                sh '''
+                    export AWS_ACCESS_KEY_ID=$AWS_CREDS_USR
+                    export AWS_SECRET_ACCESS_KEY=$AWS_CREDS_PSW
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER}
+                    helm upgrade --install shopflow helm/shopflow \
+                      --reuse-values \
+                      --set image.tag=${IMAGE_TAG}
+                    kubectl rollout status deployment/${SERVICE}-service --timeout=180s
+                '''
+            }
+        }
+    }
+
+    post {
+        success { echo "Deployed ${IMAGE}:${IMAGE_TAG} to ${EKS_CLUSTER}." }
+        failure { echo 'A stage or gate failed. Read the first red error above.' }
+    }
+}

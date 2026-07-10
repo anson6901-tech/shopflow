@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shopflow
+description: The ShopFlow platform (storefront, catalog, orders, notifications)
+type: application
+version: 1.0.0
+appVersion: "1.0"

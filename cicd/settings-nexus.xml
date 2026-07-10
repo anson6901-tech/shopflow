@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings for publishing artifacts to Nexus. The Jenkins pipeline passes
+  the username and password from the 'nexus' credential, so this file documents
+  the server id ('nexus') that the deploy step references.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+  <servers>
+    <server>
+      <id>nexus</id>
+      <username>${env.NEXUS_USERNAME}</username>
+      <password>${env.NEXUS_PASSWORD}</password>
+    </server>
+  </servers>
+</settings>

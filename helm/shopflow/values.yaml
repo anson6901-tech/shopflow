@@ -1,0 +1,32 @@
+# Everything you fill in for your environment lives here.
+# Replace every REPLACE_ value, then `helm template` to check, then `helm upgrade --install`.
+
+image:
+  registry: "010296565014.dkr.ecr.us-east-1.amazonaws.com"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
+  tag: "2.0"
+
+region: "us-east-1"
+
+# The Kubernetes ServiceAccount the pods run as. In Phase 2 this is bound to an
+# IAM role (IRSA) that grants access to SQS and Secrets Manager. See platform/secrets/SETUP.md.
+serviceAccount:
+  name: "shopflow"
+  roleArn: "arn:aws:iam::010296565014:role/eksctl-shopflow-addon-iamserviceaccount-defau-Role1-7sZXwACpUVYd"
+
+# Non-secret config.
+config:
+  datasourceUrl: "jdbc:postgresql://shopflow-db.c0p8s0e6qwxd.us-east-1.rds.amazonaws.com:5432/shopflow"
+  orderEventsQueueName: "shopflow-order-events"
+
+# The database credentials Secret. In Phase 2 this is synced from AWS Secrets
+# Manager by the Secrets Store CSI driver (platform/secrets), not written by hand.
+dbSecretName: "shopflow-db"
+
+# Public entry point. The certificate and Cognito values come from
+# platform/ingress-tls-cognito/SETUP.md.
+ingress:
+  certificateArn: "REPLACE_ACM_CERT_ARN"
+  cognito:
+    userPoolArn: "REPLACE_USER_POOL_ARN"
+    userPoolClientId: "REPLACE_CLIENT_ID"
+    userPoolDomain: "REPLACE_COGNITO_DOMAIN"

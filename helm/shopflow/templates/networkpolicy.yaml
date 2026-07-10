@@ -1,0 +1,56 @@
+# Network security: by default no pod can talk to another. Then we open
+# only the exact paths the system needs. Anything not listed is blocked.
+
+# 1. Default deny all incoming traffic to every pod in this namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    {{- include "shopflow.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# 2. Storefront may receive traffic from the load balancer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-storefront-ingress
+spec:
+  podSelector:
+    matchLabels: { app: storefront }
+  policyTypes: [Ingress]
+  ingress:
+    - {} # from the ALB (in this simple Phase 2 setup, allow into the storefront)
+---
+# 3. Catalog may be called only by Orders and Storefront.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-catalog-from-orders-and-storefront
+spec:
+  podSelector:
+    matchLabels: { app: catalog-service }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: orders-service } }
+        - podSelector: { matchLabels: { app: storefront } }
+      ports:
+        - { protocol: TCP, port: 8080 }
+---
+# 4. Orders may be called only by the Storefront.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-orders-from-storefront
+spec:
+  podSelector:
+    matchLabels: { app: orders-service }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: storefront } }
+      ports:
+        - { protocol: TCP, port: 8080 }

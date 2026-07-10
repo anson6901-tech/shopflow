@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications-service
+  labels:
+    app: notifications-service
+    {{- include "shopflow.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications-service
+  template:
+    metadata:
+      labels:
+        app: notifications-service
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: notifications-service
+          image: {{ include "shopflow.image" (dict "registry" .Values.image.registry "repo" "shopflow-notifications" "tag" .Values.image.tag) }}
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: ORDER_EVENTS_QUEUE_NAME
+              valueFrom: { configMapKeyRef: { name: shopflow-config, key: ORDER_EVENTS_QUEUE_NAME } }
+            - name: AWS_REGION
+              valueFrom: { configMapKeyRef: { name: shopflow-config, key: AWS_REGION } }
+          resources:
+            requests: { cpu: "200m", memory: "384Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notifications-service
+  labels: { app: notifications-service }
+spec:
+  selector: { app: notifications-service }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

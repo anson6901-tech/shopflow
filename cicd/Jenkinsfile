@@ -59,18 +59,19 @@ pipeline {
         }
 
         stage('Package') { steps { dir("${SERVICE_DIR}") { sh 'mvn -B -ntp package -DskipTests' } } }
-
         stage('Publish artifact to Nexus') {
             steps {
                 dir("${SERVICE_DIR}") {
-                    sh '''
-                        mvn -B -ntp deploy:deploy-file \
-                          -Durl=${NEXUS_URL} \
-                          -DrepositoryId=nexus \
-                          -Dfile=target/app.jar \
-                          -DgroupId=com.shopflow -DartifactId=${SERVICE}-service -Dversion=1.0.${BUILD_NUMBER} -Dpackaging=jar \
-                          -Dusername=${NEXUS_CREDS_USR} -Dpassword=${NEXUS_CREDS_PSW}
-                    '''
+                    withEnv(["NEXUS_USERNAME=${NEXUS_CREDS_USR}", "NEXUS_PASSWORD=${NEXUS_CREDS_PSW}"]) {
+                        sh '''
+                            mvn -B -ntp deploy:deploy-file \
+                              -s ${WORKSPACE}/cicd/settings-nexus.xml \
+                              -Durl=${NEXUS_URL} \
+                              -DrepositoryId=nexus \
+                              -Dfile=target/app.jar \
+                              -DgroupId=com.shopflow -DartifactId=${SERVICE}-service -Dversion=1.0.${BUILD_NUMBER} -Dpackaging=jar
+                        '''
+                    }
                 }
             }
         }

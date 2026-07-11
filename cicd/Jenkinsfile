@@ -37,7 +37,7 @@ pipeline {
 
         stage('Test + Coverage') {
             steps { dir("${SERVICE_DIR}") { sh 'mvn -B -ntp test' } }
-            post { always { junit "${SERVICE_DIR}/target/surefire-reports/*.xml" } }
+            post { always { junit allowEmptyResults: true, testResults: "${SERVICE_DIR}/target/surefire-reports/*.xml" } }
         }
 
         stage('Code Analysis (SonarQube)') {

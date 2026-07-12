@@ -102,7 +102,7 @@ pipeline {
                     aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER}
                     helm upgrade --install shopflow helm/shopflow \
                       --reuse-values \
-                      --set image.tag=${IMAGE_TAG}
+                      --set-string image.tag=${IMAGE_TAG}
                     kubectl rollout status deployment/${SERVICE}-service --timeout=180s
                 '''
             }
